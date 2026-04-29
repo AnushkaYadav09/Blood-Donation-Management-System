@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import Navbar from './Navbar';
 import Register from './pages/Register';
 import Login from './pages/Login';
@@ -19,6 +20,21 @@ const NotFound = () => (
 );
 
 function App() {
+  const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e); setShowBanner(true); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  function handleInstall() {
+    if (!installPrompt) return;
+    (installPrompt as unknown as { prompt: () => void }).prompt();
+    setShowBanner(false);
+  }
+
   return (
     <BrowserRouter>
       <Navbar />
@@ -36,6 +52,21 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+      {showBanner && (
+        <div id="pwa-install-banner">
+          <span>🩸 Add BloodConnect to your home screen for quick access!</span>
+          <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+            <button onClick={handleInstall}
+              style={{ background: '#fff', color: '#c41e3a', border: 'none', borderRadius: 6, padding: '0.4rem 0.9rem', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+              Install
+            </button>
+            <button onClick={() => setShowBanner(false)}
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', borderRadius: 6, padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </BrowserRouter>
   );
 }
