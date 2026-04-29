@@ -6,6 +6,7 @@ import pool from '../db';
 import { hashPassword, comparePassword } from '../utils/auth';
 import { sendEmail } from '../utils/email';
 import { requireAuth } from '../middleware/auth';
+import { logUserActivity } from '../mongo';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const router = Router();
@@ -116,6 +117,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
       [full_name.trim(), email.toLowerCase(), password_hash, phone_number.trim(), date_of_birth, gender, blood_group, location_city.trim()]
     );
     const donor = result.rows[0];
+    void logUserActivity({ event: 'register', donor_id: donor.id, full_name: full_name.trim(), email: donor.email, blood_group, gender, location_city: location_city.trim() });
     await sendEmail(donor.email, 'Welcome to BloodConnect',
       '<p>Hi ' + full_name + ',</p><p>Your registration was successful. Thank you for joining!</p>');
     res.status(201).json({ id: donor.id, email: donor.email });
@@ -173,6 +175,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       return;
     }
     await pool.query('UPDATE donors SET failed_login_attempts = 0, account_locked_until = NULL, last_login = NOW() WHERE id = $1', [donor.id]);
+    void logUserActivity({ event: 'login', donor_id: donor.id, email: donor.email });
     const token = issueToken(donor.id, donor.email, 'donor');
     res.json({ token, donor: { id: donor.id, email: donor.email, full_name: donor.full_name } });
   } catch (err) {
@@ -315,7 +318,66 @@ router.put('/:id/profile', requireAuth, async (req: Request, res: Response): Pro
   }
 });
 
-// Get donor profile
+// Send reminder email manually
+router.post('/:id/send-reminder', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  if (req.user!.id !== id) {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Access denied' } });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      `SELECT d.email, d.full_name, d.gender, d.reminder_notifications_enabled,
+              MAX(dr.donation_date) AS last_donation_date
+       FROM donors d
+       LEFT JOIN donation_records dr ON dr.donor_id = d.id
+       WHERE d.id = $1
+       GROUP BY d.id`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Donor not found' } });
+      return;
+    }
+    const donor = result.rows[0] as {
+      email: string; full_name: string; gender: string;
+      reminder_notifications_enabled: boolean; last_donation_date: string | null;
+    };
+
+    const bloodBanksUrl = (process.env.FRONTEND_URL || 'http://localhost:3000') + '/blood-banks';
+    const intervalMonths = donor.gender === 'Female' ? 4 : 3;
+    let eligibilityLine = 'You are currently eligible to donate blood!';
+    if (donor.last_donation_date) {
+      const next = new Date(donor.last_donation_date);
+      next.setMonth(next.getMonth() + intervalMonths);
+      if (next > new Date()) {
+        eligibilityLine = 'You will be eligible to donate again on ' + next.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) + '.';
+      }
+    }
+
+    await sendEmail(
+      donor.email,
+      '🩸 Blood Donation Reminder — BloodConnect',
+      `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #fecaca;border-radius:12px;">
+        <h2 style="color:#c41e3a;">Hi ${donor.full_name}! 👋</h2>
+        <p style="font-size:15px;">This is your blood donation reminder from <strong>BloodConnect</strong>.</p>
+        <p style="font-size:15px;">${eligibilityLine}</p>
+        <p>Every donation saves up to <strong>3 lives</strong>. Find a blood bank near you:</p>
+        <a href="${bloodBanksUrl}" style="display:inline-block;margin-top:12px;padding:12px 24px;background:#c41e3a;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;">
+          Find a Blood Bank
+        </a>
+        <p style="margin-top:20px;color:#666;font-size:13px;">Thank you for being a life-saver! — BloodConnect Team</p>
+      </div>`
+    );
+
+    res.json({ message: 'Reminder sent to ' + donor.email });
+  } catch (err) {
+    console.error('Send reminder error:', err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to send reminder' } });
+  }
+});
+
+// Send reminder email manually
 router.get('/:id/profile', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   if (req.user!.id !== id) {

@@ -1,6 +1,14 @@
 version: '3.8'
 
 services:
+  mongodb:
+    image: mongo:7
+    container_name: blood_donation_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
   db:
     image: postgis/postgis:14-3.3
     container_name: blood_donation_db
@@ -39,6 +47,7 @@ services:
       TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
       PORT: 3001
       FRONTEND_URL: http://localhost:3000
+      MONGODB_URL: mongodb://mongodb:27017/bloodconnect
 
   frontend:
     build: ./frontend
@@ -61,3 +70,4 @@ services:
 
 volumes:
   db_data:
+  mongo_data:

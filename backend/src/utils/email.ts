@@ -23,14 +23,14 @@ function createTransporter() {
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const transporter = createTransporter();
   if (!transporter) {
-    // No-op when EMAIL_HOST is not configured or is a placeholder (dev/test environment)
     console.log(`[Email mock] To: ${to} | Subject: ${subject}`);
     return;
   }
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to,
-    subject,
-    html,
-  });
+  try {
+    await transporter.sendMail({ from: `"BloodConnect" <${process.env.EMAIL_USER}>`, to, subject, html });
+    console.log(`[Email sent] To: ${to} | Subject: ${subject}`);
+  } catch (err) {
+    console.error(`[Email error] To: ${to} | Error:`, err);
+    throw err;
+  }
 }

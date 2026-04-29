@@ -12,6 +12,8 @@ async function migrate(): Promise<void> {
     '003_seed_data.sql',
     '004_google_auth.sql',
     '005_page_visits.sql',
+    '006_screening_history.sql',
+    '007_admin.sql',
   ];
 
   const client = await pool.connect();

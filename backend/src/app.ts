@@ -8,6 +8,7 @@ import bloodBanksRouter from './routes/bloodBanks';
 import hospitalsRouter from './routes/hospitals';
 import donationCampsRouter from './routes/donationCamps';
 import screeningRouter from './routes/screening';
+import adminRouter from './routes/admin';
 import pool from './db';
 import jwt from 'jsonwebtoken';
 
@@ -111,6 +112,9 @@ app.use('/api/donation-camps', donationCampsRouter);
 
 // Screening routes (authenticated: /api/donors/:id/screening, /api/donors/:id/eligibility)
 app.use('/api/donors', screeningRouter);
+
+// Admin routes
+app.use('/api/admin', adminRouter);
 
 // Stats endpoint for home page
 app.get('/api/stats', async (_req, res) => {

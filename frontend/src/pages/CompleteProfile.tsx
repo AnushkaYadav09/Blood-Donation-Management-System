@@ -1,6 +1,5 @@
 import { useState, FormEvent, ChangeEvent } from "react";
 import { getToken, getDonorId, authHeaders } from "../auth";
-
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const GENDERS = ["Male", "Female", "Other"];
 const INDIA_PHONE_REGEX = /^\+91[6-9]\d{9}$/;

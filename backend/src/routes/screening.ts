@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { requireAuth } from '../middleware/auth';
+import { sendEmail } from '../utils/email';
 
 const router = Router({ mergeParams: true });
 
@@ -134,10 +135,63 @@ router.post('/:id/screening', requireAuth, async (req: Request, res: Response): 
     const dateOfBirth = new Date(date_of_birth);
 
     const eligibility = runEligibilityChecks(data, gender, dateOfBirth);
+
+    // Save screening history
+    await pool.query(
+      'INSERT INTO screening_history (donor_id, is_eligible, reason, weight) VALUES ($1, $2, $3, $4)',
+      [id, eligibility.eligible, eligibility.reason ?? null, data.weight]
+    );
+
+    // Send email notification if eligible
+    if (eligibility.eligible) {
+      const donorResult = await pool.query(
+        'SELECT email, full_name, reminder_notifications_enabled FROM donors WHERE id = $1',
+        [id]
+      );
+      if (donorResult.rows.length > 0) {
+        const donor = donorResult.rows[0] as { email: string; full_name: string; reminder_notifications_enabled: boolean };
+        if (donor.reminder_notifications_enabled) {
+          const bloodBanksUrl = (process.env.FRONTEND_URL || 'http://localhost') + '/blood-banks';
+          await sendEmail(
+            donor.email,
+            '✅ You are eligible to donate blood today! — BloodConnect',
+            `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #fecaca;border-radius:12px;">
+              <h2 style="color:#c41e3a;">🩸 Great news, ${donor.full_name}!</h2>
+              <p style="font-size:16px;">You just completed your eligibility screening and <strong>you are eligible to donate blood today!</strong></p>
+              <p>Your donation can save up to <strong>3 lives</strong>. Find a blood bank near you and book your donation now.</p>
+              <a href="${bloodBanksUrl}" style="display:inline-block;margin-top:12px;padding:12px 24px;background:#c41e3a;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;">
+                Find a Blood Bank
+              </a>
+              <p style="margin-top:20px;color:#666;font-size:13px;">Thank you for being a life-saver! — BloodConnect Team</p>
+            </div>`
+          ).catch(err => console.error('Eligibility email error:', err));
+        }
+      }
+    }
+
     res.json(eligibility);
   } catch (err) {
     console.error('Screening error:', err);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Screening check failed' } });
+  }
+});
+
+// GET /api/donors/:id/screening-history
+router.get('/:id/screening-history', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  if (req.user!.id !== id) {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Access denied' } });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      'SELECT id, is_eligible, reason, weight, screened_at FROM screening_history WHERE donor_id = $1 ORDER BY screened_at DESC LIMIT 20',
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Screening history error:', err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch screening history' } });
   }
 });
 

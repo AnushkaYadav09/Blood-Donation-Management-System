@@ -7,7 +7,7 @@ interface ScreeningForm {
   hasRecentTattoo: boolean; medicalConditions: string[];
   isPregnant: boolean; isBreastfeeding: boolean; lastDonationDate: string;
 }
-interface ScreeningResult { eligible: boolean; reason?: string; }
+interface ScreeningResult { eligible: boolean; reason?: string; nextEligibleDate?: string; }
 
 const MEDICAL_CONDITIONS = ["Diabetes", "Hypertension", "Heart Disease", "Asthma", "Epilepsy", "Cancer", "Kidney Disease", "Autoimmune Disorders"];
 const COMMUNICABLE_DISEASES = ["HIV/AIDS", "Hepatitis B", "Hepatitis C", "Syphilis", "Malaria", "Tuberculosis"];
@@ -31,7 +31,7 @@ function runChecks(form: ScreeningForm): ScreeningResult {
     if (new Date() < nextEligible) {
       const nextDateStr = nextEligible.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
       const label = form.gender === "Female" ? "6 months" : "3 months";
-      return { eligible: false, reason: `${form.gender === "Female" ? "Female" : "Male"} donors must wait ${label} between donations. You will be eligible again on ${nextDateStr}.` };
+      return { eligible: false, reason: `${form.gender === "Female" ? "Female" : "Male"} donors must wait ${label} between donations. You will be eligible again on ${nextDateStr}.`, nextEligibleDate: nextEligible.toISOString().split("T")[0] };
     }
   }
   return { eligible: true };
@@ -113,6 +113,8 @@ export default function Screening() {
   const [result, setResult] = useState<ScreeningResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [reminderSending, setReminderSending] = useState(false);
+  const [reminderMsg, setReminderMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const donorId = getDonorId();
@@ -125,6 +127,30 @@ export default function Screening() {
 
   function toggleItem(arr: string[], item: string) {
     return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
+  }
+
+  async function sendReminderEmail(nextDate: string) {
+    const donorId = getDonorId();
+    if (!donorId) return;
+    setReminderSending(true); setReminderMsg(null);
+    try {
+      const res = await fetch(`/api/donors/${donorId}/send-reminder`, {
+        method: "POST", headers: authHeaders(),
+      });
+      const data = await res.json() as { message?: string; error?: { message?: string } };
+      setReminderMsg(res.ok ? `✅ Reminder sent! Check your email. Next eligible: ${new Date(nextDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}` : (data.error?.message ?? "Failed to send."));
+    } catch { setReminderMsg("Network error. Could not send reminder."); }
+    finally { setReminderSending(false); }
+  }
+
+  function addToGoogleCalendar(nextDate: string) {
+    const date = new Date(nextDate);
+    const dateStr = date.toISOString().replace(/-|:|\.\d{3}/g, "").slice(0, 8);
+    const title = encodeURIComponent("🩸 Time to Donate Blood — BloodConnect");
+    const details = encodeURIComponent("You are now eligible to donate blood! Visit your nearest blood bank today and save up to 3 lives.");
+    const location = encodeURIComponent("Nearest Blood Bank");
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dateStr}/${dateStr}&details=${details}&location=${location}`;
+    window.open(url, "_blank");
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -191,11 +217,30 @@ export default function Screening() {
               )}
             </div>
             <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
-              <button className="btn btn-primary" onClick={() => { setResult(null); setError(null); }}>
+              <button className="btn btn-primary" onClick={() => { setResult(null); setError(null); setReminderMsg(null); }}>
                 Check Again
               </button>
               {result.eligible && <a href="/blood-banks" className="btn btn-outline">Find a Blood Bank</a>}
+              {!result.eligible && result.nextEligibleDate && isLoggedIn() && (
+                <>
+                  <button className="btn btn-outline" disabled={reminderSending}
+                    onClick={() => { void sendReminderEmail(result.nextEligibleDate!); }}>
+                    {reminderSending ? "⏳ Sending..." : "📧 Send Reminder Email"}
+                  </button>
+                  <button className="btn btn-outline"
+                    style={{ background: "#fff", borderColor: "#4285f4", color: "#4285f4" }}
+                    onClick={() => addToGoogleCalendar(result.nextEligibleDate!)}>
+                    📅 Add to Google Calendar
+                  </button>
+                </>
+              )}
             </div>
+            {reminderMsg && (
+              <div className={`alert ${reminderMsg.startsWith("✅") ? "alert-success" : "alert-error"}`}
+                style={{ marginTop: "0.75rem", fontSize: "0.875rem" }}>
+                {reminderMsg}
+              </div>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
