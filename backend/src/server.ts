@@ -36,27 +36,38 @@ async function runMigrations(): Promise<void> {
   }
 }
 
-async function start(): Promise<void> {
-  // Wait for DB to be ready
-  let retries = 10;
-  while (retries > 0) {
+async function waitForDb(maxRetries = 15, delayMs = 3000): Promise<boolean> {
+  for (let i = maxRetries; i > 0; i--) {
     try {
       await pool.query('SELECT 1');
-      break;
+      console.log('Database connected successfully.');
+      return true;
     } catch {
-      retries--;
-      console.log(`Waiting for database... (${retries} retries left)`);
-      await new Promise(r => setTimeout(r, 3000));
+      console.log(`Waiting for database... (${i - 1} retries left)`);
+      await new Promise(r => setTimeout(r, delayMs));
     }
   }
+  console.error('Could not connect to database after maximum retries.');
+  return false;
+}
 
-  await runMigrations();
-  await connectMongo();
-
-  app.listen(PORT, () => {
+async function start(): Promise<void> {
+  // Start server immediately so Render detects the open port
+  const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    startReminderCron();
   });
+
+  // Then connect to DB in background
+  const dbReady = await waitForDb();
+
+  if (dbReady) {
+    await runMigrations();
+    await connectMongo();
+    startReminderCron();
+    console.log('All services initialized.');
+  } else {
+    console.error('Running without database — some endpoints will fail.');
+  }
 }
 
 void start();
