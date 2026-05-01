@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import { getCityFromGPS } from "../utils/location";
+import { apiUrl } from "../api";
 
 interface BloodBank {
   id: string; name: string; address: string; city: string;
@@ -33,7 +34,7 @@ export default function BloodBanks() {
 
   function fetchAll() {
     setLoading(true); setError(null);
-    fetch("/api/blood-banks")
+    fetch(apiUrl("/api/blood-banks"))
       .then(r => { if (!r.ok) throw new Error(); return r.json() as Promise<BloodBank[]>; })
       .then(data => { if (Array.isArray(data)) setBanks(data); else throw new Error(); })
       .catch(() => setError("⚠️ Cannot connect to the server."))
@@ -42,7 +43,7 @@ export default function BloodBanks() {
 
   function fetchNearby(lat: number, lng: number) {
     setLoading(true); setError(null);
-    fetch(`/api/blood-banks/nearby?lat=${lat}&lng=${lng}&radius=100`)
+    fetch(apiUrl(`/api/blood-banks/nearby?lat=${lat}&lng=${lng}&radius=100`))
       .then(r => r.ok ? r.json() as Promise<BloodBank[]> : Promise.reject())
       .then(data => { if (Array.isArray(data) && data.length > 0) setBanks(data); else fetchAll(); })
       .catch(() => fetchAll())
