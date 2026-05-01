@@ -17,9 +17,23 @@ const app = express();
 // Security middleware
 app.use(helmet());
 
-// CORS middleware
+// CORS middleware - allow multiple origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://blood-donation-ecru-chi.vercel.app',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 
