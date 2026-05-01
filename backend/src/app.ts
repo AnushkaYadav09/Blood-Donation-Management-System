@@ -21,6 +21,7 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:3000',
   'https://blood-donation-ecru-chi.vercel.app',
+  'https://blood-donation-management-system.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
