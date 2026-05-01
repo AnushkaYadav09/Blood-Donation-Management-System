@@ -138,7 +138,7 @@ app.get('/api/stats', async (_req, res) => {
 });
 
 // Serve static files from frontend build (for production deployment)
-const frontendPath = path.join(__dirname, '../../frontend/dist');
+const frontendPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(frontendPath));
 
 // Catch-all route to serve index.html for client-side routing
