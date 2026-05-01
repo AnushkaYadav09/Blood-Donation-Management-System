@@ -1,0 +1,66 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: blood-donation-db
+    env: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile.postgres
+    envVars:
+      - key: POSTGRES_DB
+        value: blood_donation
+      - key: POSTGRES_USER
+        value: postgres
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+
+  # MongoDB Database
+  - type: pserv
+    name: blood-donation-mongo
+    env: docker
+    plan: free
+    region: oregon
+    image: mongo:7
+
+  # Backend + Frontend (combined)
+  - type: web
+    name: blood-donation-app
+    env: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: blood-donation-db
+          property: connectionString
+      - key: MONGODB_URL
+        value: mongodb://blood-donation-mongo:27017/bloodconnect
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 30m
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: 587
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: PORT
+        value: 3001
+      - key: FRONTEND_URL
+        value: https://blood-donation-app.onrender.com
+    healthCheckPath: /api/health

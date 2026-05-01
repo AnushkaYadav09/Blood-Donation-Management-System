@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
 import donorsRouter from './routes/donors';
 import donationsRouter from './routes/donations';
 import donorDonationsRouter from './routes/donorDonations';
@@ -134,6 +135,15 @@ app.get('/api/stats', async (_req, res) => {
   } catch {
     res.json({ totalDonors: 0, totalDonations: 0, totalBloodBanks: 0, totalCamps: 0 });
   }
+});
+
+// Serve static files from frontend build (for production deployment)
+const frontendPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendPath));
+
+// Catch-all route to serve index.html for client-side routing
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 export default app;
