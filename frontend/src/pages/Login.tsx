@@ -1,7 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { saveAuth } from '../auth';
-import { API_BASE } from '../api';
 
 type LoginMode = 'user' | 'admin';
 
