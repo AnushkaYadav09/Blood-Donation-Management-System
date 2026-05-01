@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Credentials (DO NOT COMMIT)
+CREDENTIALS_NOTE.md
+
 # Dependencies
 node_modules/
 
